@@ -1,1 +1,16 @@
+# Ignore local runtime log files
+*.log
 parser.log
+
+# Ignore local environment configurations and personal scripts
+.env
+__pycache__/
+*.pyc
+
+# Ignore testing inputs, personal script files, or local cast files
+# (This keeps your personal system paths out of the public repo)
+*.txt
+*.json
+
+# Ignore local shell scripts containing personal system execution commands
+*.sh
