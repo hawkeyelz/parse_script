@@ -8,12 +8,15 @@ def parse_radio_script(script_path, cast_json_path):
     script_path = Path(script_path)
     cast_json_path = Path(cast_json_path)
     
-    # 1. Load the decoupled voice cast
+    # 1. Load the decoupled voice cast profiles
     if cast_json_path.exists():
         with open(cast_json_path, 'r') as f:
             voice_cast = json.load(f)
     else:
-        voice_cast = {"default": "male_04.wav"}
+        voice_cast = {}
+
+    # Define standard fallback defaults if the cast JSON is empty or missing a character block
+    default_profile = {"voice_filename": "male_04.wav", "exaggeration": 0.60, "cfg_weight": 0.50}
 
     # 2. Read the script file
     with open(script_path, 'r') as f:
@@ -22,31 +25,42 @@ def parse_radio_script(script_path, cast_json_path):
     formatted_rows = []
     line_counter = 1
 
-    # 3. Parse characters and map to voice files
+    # 3. Parse characters and map to voice parameters
     for line in lines:
         line = line.strip()
         if not line:
             continue
             
-        match = re.match(r"^([A-Z0-9_\s]+):\s*(.*)$", line, re.IGNORECASE)
+        match = re.match(r"^([A-Z0-9_\-\s]+):\s*(.*)$", line, re.IGNORECASE)
         if match:
             character = match.group(1).strip().lower()
             text = match.group(2).strip()
             
-            voice_file = voice_cast.get(character, voice_cast.get("default", "male_04.wav"))
+            # Fetch the character profile block, look for 'default', or use fallback dictionary
+            char_profile = voice_cast.get(character, voice_cast.get("default", default_profile))
+            
+            # Safe parsing if the voice cast json still has a legacy raw string instead of a dictionary
+            if isinstance(char_profile, str):
+                voice_file = char_profile
+                exaggeration = default_profile["exaggeration"]
+                cfg_weight = default_profile["cfg_weight"]
+            else:
+                voice_file = char_profile.get("voice_filename", default_profile["voice_filename"])
+                exaggeration = char_profile.get("exaggeration", default_profile["exaggeration"])
+                cfg_weight = char_profile.get("cfg_weight", default_profile["cfg_weight"])
             
             formatted_rows.append({
                 "line_number": line_counter,
                 "character": character,
                 "text": text,
                 "voice_filename": voice_file,
+                "exaggeration": exaggeration,
+                "cfg_weight": cfg_weight,
                 "output_filename": f"line_{str(line_counter).zfill(3)}.wav"
             })
             line_counter += 1
 
     return formatted_rows
-
-# --- Native HTTP Server Bridge ---
 class PipelineParserHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/parse':
