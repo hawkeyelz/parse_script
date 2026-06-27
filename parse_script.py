@@ -2,6 +2,7 @@ import sys
 import json
 import re
 from pathlib import Path
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 def parse_radio_script(script_path, cast_json_path):
     script_path = Path(script_path)
@@ -43,10 +44,49 @@ def parse_radio_script(script_path, cast_json_path):
             })
             line_counter += 1
 
-    # 4. Print clean JSON to stdout for n8n to catch
-    print(json.dumps(formatted_rows, indent=2))
+    return formatted_rows
+
+# --- Native HTTP Server Bridge ---
+class PipelineParserHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path == '/parse':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                script_path = payload.get("script_path")
+                voice_cast_path = payload.get("voice_cast_path")
+                
+                # Execute the parsing logic
+                result_data = parse_radio_script(script_path, voice_cast_path)
+                
+                # Send successful response
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(result_data).encode('utf-8'))
+                
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+def run_server(port=5000):
+    server_address = ('0.0.0.0', port)
+    httpd = HTTPServer(server_address, PipelineParserHandler)
+    print(f"Parser API engine online on port {port}...")
+    httpd.serve_forever()
 
 if __name__ == "__main__":
-    # Expects arguments: python parse_script.py [script.txt] [voice_cast.json]
+    # If arguments are passed, run as CLI tool like before
     if len(sys.argv) > 2:
-        parse_radio_script(sys.argv[1], sys.argv[2])
+        results = parse_radio_script(sys.argv[1], sys.argv[2])
+        print(json.dumps(results, indent=2))
+    else:
+        # Otherwise, default to starting up the network listener on port 5000
+        run_server(port=5000)
