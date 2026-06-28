@@ -31,7 +31,7 @@ def parse_radio_script(script_path, cast_json_path):
         if not line:
             continue
             
-        match = re.match(r"^([A-Z0-9_\-\s]+):\s*(.*)$", line, re.IGNORECASE)
+        match = re.match(r"^(?:\\s*)?([A-Z0-9_\-\s]+):\s*(.*)$", line, re.IGNORECASE)
         if match:
             character = match.group(1).strip().lower()
             text = match.group(2).strip()
@@ -61,6 +61,8 @@ def parse_radio_script(script_path, cast_json_path):
             line_counter += 1
 
     return formatted_rows
+
+
 class PipelineParserHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/parse':
@@ -90,11 +92,13 @@ class PipelineParserHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
-def run_server(port=5000):
-    server_address = ('0.0.0.0', port)
+
+def run_server(host='0.0.0.0', port=5000):
+    server_address = (host, port)
     httpd = HTTPServer(server_address, PipelineParserHandler)
-    print(f"Parser API engine online on port {port}...")
+    print(f"Parser API engine online on {host}:{port}...")
     httpd.serve_forever()
+
 
 if __name__ == "__main__":
     # If arguments are passed, run as CLI tool like before
@@ -102,5 +106,24 @@ if __name__ == "__main__":
         results = parse_radio_script(sys.argv[1], sys.argv[2])
         print(json.dumps(results, indent=2))
     else:
-        # Otherwise, default to starting up the network listener on port 5000
-        run_server(port=5000)
+        # Default network listener settings
+        default_host = "0.0.0.0"
+        default_port = 5000
+        
+        # Dynamically locate parser_config.json right next to this service file
+        script_dir = Path(__file__).resolve().parent
+        config_path = script_dir / "parser_config.json"
+        
+        if config_path.exists():
+            try:
+                with open(config_path, "r") as f:
+                    config_data = json.load(f)
+                    # Extract server settings safely from the json config layout
+                    server_settings = config_data.get("server", {})
+                    default_host = server_settings.get("host", default_host)
+                    default_port = server_settings.get("port", default_port)
+            except Exception as e:
+                print(f"Warning: Failed to read parser_config.json ({e}). Using fallbacks.", file=sys.stderr)
+        
+        # Start the network listener using both configured host and port
+        run_server(host=default_host, port=default_port)
