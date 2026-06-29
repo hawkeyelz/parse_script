@@ -16,7 +16,12 @@ def parse_radio_script(script_path, cast_json_path):
         voice_cast = {}
 
     # Define standard fallback defaults if the cast JSON is empty or missing a character block
-    default_profile = {"voice_filename": "male_04.wav", "exaggeration": 0.60, "cfg_weight": 0.50}
+    default_profile = {
+        "voice_filename": "male_04.wav",
+        "exaggeration": 0.60,
+        "cfg_weight": 0.50,
+        "speed_factor": 1.0 
+    }
 
     # 2. Read the script file
     with open(script_path, 'r') as f:
@@ -56,6 +61,7 @@ def parse_radio_script(script_path, cast_json_path):
                 "voice_filename": voice_file,
                 "exaggeration": exaggeration,
                 "cfg_weight": cfg_weight,
+                "speed_factor": char_profile.get("speed_factor", default_profile["speed_factor"]),
                 "output_filename": f"line_{str(line_counter).zfill(3)}.wav"
             })
             line_counter += 1
